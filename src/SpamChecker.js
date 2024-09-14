@@ -401,6 +401,108 @@
 
 // export default SpamChecker;
 
+// import React, { useEffect, useState } from "react";
+// import { ref, onValue, update, set, remove } from "firebase/database";
+// import { Filter } from "bad-words";
+// import { database } from "./firebaseConfig"; // Import the initialized database
+// import "./SpamChecker.css"; // Import the CSS styles
+
+// const SpamChecker = () => {
+//   const [complaints, setNonSpamComplaints] = useState([]); // Non-spam complaints
+//   const [spamMessages, setSpamMessages] = useState([]); // Spam messages
+//   const filter = new Filter(); // Create an instance of the Filter
+
+//   useEffect(() => {
+//     const complaintsRef = ref(database, "Add_Complaint");
+
+//     const handleData = (snapshot) => {
+//       const data = snapshot.val();
+//       if (data) {
+//         const complaintsArray = Object.keys(data).map((key) => ({
+//           id: key,
+//           ...data[key],
+//         }));
+
+//         const nonSpam = [];
+//         const spamToMove = [];
+
+//         complaintsArray.forEach((complaint) => {
+//           if (filter.isProfane(complaint.description)) {
+//             const cleanDescription =
+//               filter.clean(complaint.description) + " [Spam detected]";
+
+//             spamToMove.push({
+//               id: complaint.id,
+//               description: cleanDescription,
+//               ...complaint,
+//             });
+
+//             remove(ref(database, `Add_Complaint/${complaint.id}`));
+//           } else {
+//             nonSpam.push(complaint); // Add to non-spam list
+//           }
+//         });
+
+//         setNonSpamComplaints(nonSpam);
+
+//         if (spamToMove.length > 0) {
+//           spamToMove.forEach((spam) => {
+//             set(ref(database, `Spam_Messages/${spam.id}`), spam);
+//           });
+//         }
+//       }
+//     };
+
+//     const complaintsListener = onValue(complaintsRef, handleData);
+
+//     const spamMessagesRef = ref(database, "Spam_Messages");
+
+//     const handleSpamData = (snapshot) => {
+//       const spamData = snapshot.val();
+//       if (spamData) {
+//         const spamArray = Object.keys(spamData).map((key) => ({
+//           id: key,
+//           ...spamData[key],
+//         }));
+//         setSpamMessages(spamArray);
+//       }
+//     };
+
+//     const spamMessagesListener = onValue(spamMessagesRef, handleSpamData);
+
+//     return () => {
+//       complaintsListener();
+//       spamMessagesListener();
+//     };
+//   }, []);
+
+//   return (
+//     <div className="container">
+//       <h1 className="header">Complaints List (Filtered for Spam)</h1>
+//       <ul className="complaints-list">
+//         {complaints.map((complaint) => (
+//           <li className="complaint-item" key={complaint.id}>
+//             <span className="complaint-id">ID: {complaint.id}</span>
+//             <span className="complaint-desc">{complaint.description}</span>
+//           </li>
+//         ))}
+//       </ul>
+
+//       <h1 className="header">Spam Messages</h1>
+//       <ul className="spam-list">
+//         {spamMessages.map((spam) => (
+//           <li className="spam-item" key={spam.id}>
+//             <span className="spam-id">ID: {spam.id}</span>
+//             <span className="spam-desc">{spam.description}</span>
+//           </li>
+//         ))}
+//       </ul>
+//     </div>
+//   );
+// };
+
+// export default SpamChecker;
+
 import React, { useEffect, useState } from "react";
 import { ref, onValue, update, set, remove } from "firebase/database";
 import { Filter } from "bad-words";
@@ -431,13 +533,12 @@ const SpamChecker = () => {
             const cleanDescription =
               filter.clean(complaint.description) + " [Spam detected]";
 
+            // Prepare spam message to move
             spamToMove.push({
               id: complaint.id,
               description: cleanDescription,
               ...complaint,
             });
-
-            remove(ref(database, `Add_Complaint/${complaint.id}`));
           } else {
             nonSpam.push(complaint); // Add to non-spam list
           }
@@ -445,9 +546,18 @@ const SpamChecker = () => {
 
         setNonSpamComplaints(nonSpam);
 
+        // Process the spam messages
         if (spamToMove.length > 0) {
           spamToMove.forEach((spam) => {
-            set(ref(database, `Spam_Messages/${spam.id}`), spam);
+            // Move the spam message to the Spam_Messages table
+            set(ref(database, `Spam_Messages/${spam.id}`), spam)
+              .then(() => {
+                // After successfully moving the message, delete it from Add_Complaint
+                remove(ref(database, `Add_Complaint/${spam.id}`));
+              })
+              .catch((error) => {
+                console.error("Error moving spam message: ", error);
+              });
           });
         }
       }
@@ -474,7 +584,7 @@ const SpamChecker = () => {
       complaintsListener();
       spamMessagesListener();
     };
-  }, []);
+  }, []); // The empty dependency array ensures this effect runs only once
 
   return (
     <div className="container">
